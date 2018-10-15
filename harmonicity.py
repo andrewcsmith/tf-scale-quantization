@@ -89,6 +89,9 @@ def calc_func_graph(log_pitches, vectors, c=0.1):
 def cost_func(log_pitches, vectors, c=0.1, name=None):
     return tf.subtract(tf.constant(1.0, dtype=tf.float64), calc_func_graph(log_pitches, vectors, c), name=name)
 
+def vector_space_graph(n_primes, n_degrees, name=None):
+    return permutations(tf.range(-n_degrees, n_degrees+1, dtype=tf.float64), times=n_primes, name=name)
+
 if __name__ == "__main__":
     # Initialization options here are because Windows does not
     # (by default) allow the gpu to allocate more memory
@@ -105,9 +108,7 @@ if __name__ == "__main__":
     # log_pitches = tf.get_variable("log_pitches", shape=starting_pitches.shape, dtype=tf.float64)
     # sess.run(log_pitches.assign(starting_pitches))
 
-    n_primes = 5
-    n_degrees = 4
-    vectors = permutations(tf.range(-n_degrees, n_degrees+1, dtype=tf.float64), times=n_primes, name="vectors")
+    vectors = vector_space_graph(5, 4, name="vectors")
 
     # Optimizer, setting the desired learning rate
     opt = tf.train.GradientDescentOptimizer(learning_rate=1.0e-4)
