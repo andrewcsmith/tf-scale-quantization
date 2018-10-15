@@ -7,15 +7,6 @@ from contourtools.helpers import combinatorial_contour, get_bases
 
 from tensorflow.python import debug as tf_debug
 
-# Initialization options here are because Windows does not
-# (by default) allow the gpu to allocate more memory
-# throughout the TF run.
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
-sess = tf.Session(config=config)
-
-hooks = [tf_debug.LocalCLIDebugHook()]
-
 def calc_prime_transform(primes):
     """
     Transforms the primes for use in vectorized indigestibility calculations.
@@ -98,105 +89,106 @@ def calc_func_graph(log_pitches, vectors, c=0.1):
 def cost_func(log_pitches, vectors, c=0.1, name=None):
     return tf.subtract(1.0, calc_func_graph(log_pitches, vectors, c), name=name)
 
-# Assignment has to be within sess.run
-starting_pitches = np.array([ 0.0, 0.0 ])
-log_pitches = tf.Variable(starting_pitches, name='log_pitches')
-init = tf.variables_initializer(tf.global_variables(), name="init")
-# log_pitches = tf.get_variable("log_pitches", shape=starting_pitches.shape, dtype=tf.float64)
-# sess.run(log_pitches.assign(starting_pitches))
+if __name__ == "__main__":
+    # Initialization options here are because Windows does not
+    # (by default) allow the gpu to allocate more memory
+    # throughout the TF run.
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    sess = tf.Session(config=config)
 
-n_primes = 5
-n_degrees = 4
-vectors = permutations(tf.range(-n_degrees, n_degrees+1, dtype=tf.float64), times=n_primes, name="vectors")
+    hooks = [tf_debug.LocalCLIDebugHook()]
+    # Assignment has to be within sess.run
+    starting_pitches = np.array([ 0.0, 0.0 ])
+    log_pitches = tf.Variable(starting_pitches, name='log_pitches')
+    init = tf.variables_initializer(tf.global_variables(), name="init")
+    # log_pitches = tf.get_variable("log_pitches", shape=starting_pitches.shape, dtype=tf.float64)
+    # sess.run(log_pitches.assign(starting_pitches))
 
-# Optimizer, setting the desired learning rate
-opt = tf.train.GradientDescentOptimizer(learning_rate=1.0e-4)
+    n_primes = 5
+    n_degrees = 4
+    vectors = permutations(tf.range(-n_degrees, n_degrees+1, dtype=tf.float64), times=n_primes, name="vectors")
 
-# Vectors to calculate the loss function, so that we know when to stop.
-loss = cost_func(log_pitches, vectors, c=0.05, name="loss")
-# Calling #minimize on an Optimizer returns a graph that runs a single calculate
-# and update step.
-opt_op = opt.minimize(loss, var_list=[log_pitches], name="minimize")
-# We want to compute the new gradient after updating.
-compute_grad = opt.compute_gradients(loss, var_list=[log_pitches])
-# Get the norm of the gradient to see whether we're at the peak.
-grad_norms = [tf.nn.l2_loss(g) for g, v in compute_grad]
-grad_norm = tf.add_n(grad_norms, name="grad_norm")
+    # Optimizer, setting the desired learning rate
+    opt = tf.train.GradientDescentOptimizer(learning_rate=1.0e-4)
 
-steps = np.array([starting_pitches * 1200.0])
+    # Vectors to calculate the loss function, so that we know when to stop.
+    loss = cost_func(log_pitches, vectors, c=0.05, name="loss")
+    # Calling #minimize on an Optimizer returns a graph that runs a single calculate
+    # and update step.
+    opt_op = opt.minimize(loss, var_list=[log_pitches], name="minimize")
+    # We want to compute the new gradient after updating.
+    compute_grad = opt.compute_gradients(loss, var_list=[log_pitches])
+    # Get the norm of the gradient to see whether we're at the peak.
+    grad_norms = [tf.nn.l2_loss(g) for g, v in compute_grad]
+    grad_norm = tf.add_n(grad_norms, name="grad_norm")
 
-definition = sess.graph_def
-directory = '../../tf-polysynth'
-tf.train.write_graph(definition, directory, 'model.pb', as_text=False)
+    steps = np.array([starting_pitches * 1200.0])
 
-log_vectors = vector_pitch_distances(vectors)
-diffs_to_poles = tf.abs(
-    tf.transpose(tf.reshape(
-        tf.tile(log_vectors, log_pitches.shape), 
-        [log_pitches.shape[0], -1]))
-    - log_pitches)
+    definition = sess.graph_def
+    directory = '../../tf-polysynth'
+    tf.train.write_graph(definition, directory, 'model.pb', as_text=False)
 
-mins = tf.argmin(diffs_to_poles, axis=0)
-print(mins)
-winner = tf.map_fn(lambda m: vectors[m, :], mins, dtype=tf.float64)
-print(winner)
+    log_vectors = vector_pitch_distances(vectors)
+    diffs_to_poles = tf.abs(
+        tf.transpose(tf.reshape(
+            tf.tile(log_vectors, log_pitches.shape), 
+            [log_pitches.shape[0], -1]))
+        - log_pitches)
 
-sess.run(init)
-MAX_ITERS = 100000
+    mins = tf.argmin(diffs_to_poles, axis=0)
+    winner = tf.map_fn(lambda m: vectors[m, :], mins, dtype=tf.float64)
 
-def vector_to_ratio(vector):
-    primes = PRIMES[:vector.shape[0]]
-    num = np.where(vector > 0, vector, np.zeros_like(primes))
-    den = np.where(vector < 0, vector, np.zeros_like(primes))
-    return (
-        np.product(np.power(primes, num)), 
-        np.product(primes ** np.abs(den))
-    )
+    sess.run(init)
+    MAX_ITERS = 100000
 
-def run_minimizer():
-    for i in range(MAX_ITERS):
-        _, norm, out_pitches = sess.run([opt_op, grad_norm, log_pitches])
-        # steps = np.vstack([steps, out_pitches * 1200.0])
-        if (norm < 1.0e-10):
-            # print("Converged at iteration: ", i)
-            # out = log_pitches.eval(session=sess)
-            print(out_pitches * 1200.0)
-            break
+    def vector_to_ratio(vector):
+        primes = PRIMES[:vector.shape[0]]
+        num = np.where(vector > 0, vector, np.zeros_like(primes))
+        den = np.where(vector < 0, vector, np.zeros_like(primes))
+        return (
+            np.product(np.power(primes, num)), 
+            np.product(primes ** np.abs(den))
+        )
 
-all_possible_pitches = set()
+    def run_minimizer():
+        for i in range(MAX_ITERS):
+            _, norm, out_pitches = sess.run([opt_op, grad_norm, log_pitches])
+            # steps = np.vstack([steps, out_pitches * 1200.0])
+            if (norm < 1.0e-10):
+                # print("Converged at iteration: ", i)
+                # out = log_pitches.eval(session=sess)
+                print(out_pitches * 1200.0)
+                break
 
-step = 0.01
-x = np.arange(0.0, 1.0, step)
-y = np.arange(0.0, 1.0, step)
-xv, yv = np.meshgrid(x, y, sparse=False)
-starting_coordinates = np.array([xv, yv]).reshape(2, -1).T
+    all_possible_pitches = set()
 
-for i in starting_coordinates:
-    print(i)
-    assign_pitches_op = log_pitches.assign(i, use_locking=True)
-    sess.run(assign_pitches_op)
-    run_minimizer()
+    step = 0.01
+    x = np.arange(0.0, 1.0, step)
+    y = np.arange(0.0, 1.0, step)
+    xv, yv = np.meshgrid(x, y, sparse=False)
+    starting_coordinates = np.array([xv, yv]).reshape(2, -1).T
 
-    ms = sess.run([mins])
-    print(ms)
-    winning_vector = np.array(sess.run([winner]))[0, :]
-    print(winning_vector)
-    for v in winning_vector:
-        ratio = vector_to_ratio(v)
-        all_possible_pitches.add(ratio)
-        print(ratio)
+    for i in starting_coordinates:
+        print(i)
+        assign_pitches_op = log_pitches.assign(i, use_locking=True)
+        sess.run(assign_pitches_op)
+        run_minimizer()
 
-print("All possible pitches:")
-print(len(all_possible_pitches))
-print(all_possible_pitches)
+        ms = sess.run([mins])
+        print(ms)
+        winning_vector = np.array(sess.run([winner]))[0, :]
+        print(winning_vector)
+        for v in winning_vector:
+            ratio = vector_to_ratio(v)
+            all_possible_pitches.add(ratio)
+            print(ratio)
 
-# print("Diffs: ", dtps)
-# print("Winning vector: ", winning_vector)
+    print("All possible pitches:")
+    print(len(all_possible_pitches))
+    print(all_possible_pitches)
 
+    # with open('frequencies.json', 'w') as f:
+    #     f.write(json.dumps(list(map(lambda x: list(x), steps))))
 
-
-
-# with open('frequencies.json', 'w') as f:
-#     f.write(json.dumps(list(map(lambda x: list(x), steps))))
-
-# print(steps)
+    # print(steps)
