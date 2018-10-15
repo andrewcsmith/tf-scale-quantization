@@ -105,11 +105,9 @@ init = tf.variables_initializer(tf.global_variables(), name="init")
 # log_pitches = tf.get_variable("log_pitches", shape=starting_pitches.shape, dtype=tf.float64)
 # sess.run(log_pitches.assign(starting_pitches))
 
-# Our possible "poles" for harmonicity are every point in an 11-limit space, 5
-# degrees along every dimension
 n_primes = 5
 n_degrees = 4
-vectors = tf.identity(permutations(tf.range(-n_degrees, n_degrees+1, dtype=tf.float64), times=n_primes), name="vectors")
+vectors = permutations(tf.range(-n_degrees, n_degrees+1, dtype=tf.float64), times=n_primes, name="vectors")
 
 # Optimizer, setting the desired learning rate
 opt = tf.train.GradientDescentOptimizer(learning_rate=1.0e-4)

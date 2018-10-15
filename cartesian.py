@@ -20,14 +20,14 @@ def cartesian_graph(a):
         cart = tf.concat([tile_c, cart], axis=1)
     return cart
 
-def permutations(a, times=2):
+def permutations(a, times=2, name=None):
     """
     Shortcut for generating the Cartesian product of self, using indices so
     that we can work with a small number of elements initially.
     """
     options = tf.range(tf.shape(a)[0])
     indices = cartesian_graph([options for _ in range(times)])
-    return tf.gather(a, indices)
+    return tf.gather(a, indices, name=name)
 
 if __name__ == '__main__':
     # This stuff is for my piece Boundary Line
