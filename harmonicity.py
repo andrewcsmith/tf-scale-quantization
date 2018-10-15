@@ -87,7 +87,7 @@ def calc_func_graph(log_pitches, vectors, c=0.1):
     return tf.reduce_mean(tf.reduce_max(harmonicities * scales, 0), -1)
 
 def cost_func(log_pitches, vectors, c=0.1, name=None):
-    return tf.subtract(1.0, calc_func_graph(log_pitches, vectors, c), name=name)
+    return tf.subtract(tf.constant(1.0, dtype=tf.float64), calc_func_graph(log_pitches, vectors, c), name=name)
 
 if __name__ == "__main__":
     # Initialization options here are because Windows does not
