@@ -7,9 +7,10 @@ from tensorflow.python import debug as tf_debug
 c = 0.05
 n_points = 1001
 
-# import os
-# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+# In sequence at n_points = 101
+# TotalSeconds      : 16.0295673
+# In parallel
+# TotalSeconds      : 4.6289348
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -25,6 +26,8 @@ sess.run(init_op)
 
 xs = np.linspace(0.0, 1.0, n_points)
 ys = sess.run([log_pitches.assign(tf.expand_dims(xs, 1)), y_op])[1]
+# The following iterates over each element in sequence, rather than loading it
+# all as a single parallel graph.
 # ys = np.array([sess.run([log_pitches.assign([x]), y_op])[1] for x in xs])
 
 plt.plot(xs, ys)
