@@ -75,22 +75,31 @@ def calc_func_graph(log_pitches, vectors, c=0.1):
     c: coefficient to control the width of the bell curve
     """
     pitch_distances = vector_pitch_distances(vectors)
+    pitch_distances = tf.expand_dims(pitch_distances, -1)
     bases = get_bases(log_pitches.shape[-1] + 1)
     combinatorial_log_pitches = tf.abs(tf.tensordot(log_pitches, bases, 1))
-    pitch_distances = tf.expand_dims(pitch_distances, -1)
     combinatorial_log_pitches = tf.expand_dims(combinatorial_log_pitches, 0)
     tiled_ones = tf.ones_like(pitch_distances) * -1.0
-    diffs = tf.abs(tf.add(pitch_distances, tf.tensordot(tiled_ones, combinatorial_log_pitches, 1)))
+    # reduce memory usage. vectors and therefore pitch_distances is 9^5 large.
+    combos = tf.tensordot(tiled_ones, combinatorial_log_pitches, 1)
+    diffs = tf.abs(tf.add(tf.expand_dims(pitch_distances, 1), combos))
     scales = tf.exp(-1.0 * (diffs**2 / (2.0 * c**2)))
     harmonicities = tf.abs(harmonicity_graph(vectors.shape[-1], vectors))
     harmonicities = tf.expand_dims(harmonicities, -1)
-    return tf.reduce_mean(tf.reduce_max(harmonicities * scales, 0), -1)
+    reduced_max = tf.reduce_max(tf.expand_dims(harmonicities, 1) * scales, 0)
+    return tf.reduce_mean(reduced_max, -1)
 
 def cost_func(log_pitches, vectors, c=0.1, name=None):
     return tf.subtract(tf.constant(1.0, dtype=tf.float64), calc_func_graph(log_pitches, vectors, c), name=name)
 
-def vector_space_graph(n_primes, n_degrees, name=None):
-    return permutations(tf.range(-n_degrees, n_degrees+1, dtype=tf.float64), times=n_primes, name=name)
+def vector_space_graph(n_primes, n_degrees, bounds=None, name=None):
+    vectors = permutations(tf.range(-n_degrees, n_degrees+1, dtype=tf.float64), times=n_primes, name=name)
+    if bounds:
+        pitch_distances = vector_pitch_distances(vectors)
+        out_of_bounds_mask = tf.logical_and(tf.less_equal(pitch_distances, bounds[1]), tf.greater_equal(pitch_distances, bounds[0]))
+        pitch_distances = tf.boolean_mask(pitch_distances, out_of_bounds_mask)
+        vectors = tf.boolean_mask(vectors, out_of_bounds_mask)
+    return vectors
 
 if __name__ == "__main__":
     # Initialization options here are because Windows does not
@@ -164,7 +173,7 @@ if __name__ == "__main__":
 
     all_possible_pitches = set()
 
-    step = 0.01
+    step = 0.1
     x = np.arange(0.0, 1.0, step)
     y = np.arange(0.0, 1.0, step)
     xv, yv = np.meshgrid(x, y, sparse=False)
