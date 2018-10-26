@@ -3,9 +3,17 @@ import tensorflow as tf
 import itertools
 import numpy as np
 from cartesian import * 
-from contourtools.helpers import combinatorial_contour, get_bases
+
+# from contourtools.helpers import combinatorial_contour, get_bases
 
 from tensorflow.python import debug as tf_debug
+
+def combinatorial_contour(vec): 
+    combos = np.array(list(itertools.combinations(vec, 2)))
+    return combos[:, 0] - combos[:, 1]
+
+def get_bases(length):
+    return np.apply_along_axis(combinatorial_contour, 1, np.eye(length))[1:] * -1
 
 def calc_prime_transform(primes):
     """
