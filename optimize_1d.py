@@ -5,12 +5,10 @@ import matplotlib.pyplot as plt
 from tensorflow.python import debug as tf_debug
 
 c = 0.03
-n_points = 1201
+n_points = 128
+CONVERGENCE_THRESHOLD = 1.0e-9
 
-# In sequence at n_points = 101
-# TotalSeconds      : 16.0295673
-# In parallel
-# TotalSeconds      : 4.6289348
+# 14.0481932 Seconds
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -36,10 +34,13 @@ compute_grad_op = opt.compute_gradients(loss, var_list=[log_pitches])
 grad_norms_op = [tf.nn.l2_loss(g) for g, v in compute_grad_op]
 grad_norm_op = tf.add_n(grad_norms_op, name="grad_norm")
 
+with tf.control_dependencies([opt_op]):
+    stopping_condition_op = tf.reduce_all(tf.less(grad_norm_op, tf.constant(CONVERGENCE_THRESHOLD, dtype=tf.float64)))
+
 for idx in range(100000):
-    _, norm, out_pitches = sess.run([opt_op, grad_norm_op, log_pitches])
-    if (norm < 1.0e-9):
+    if (sess.run(stopping_condition_op)):
         print("Converged at iteration: ", idx)
+        out_pitches = sess.run(log_pitches)
         print(out_pitches * 1200.0)
         break
 
