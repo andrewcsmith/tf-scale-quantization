@@ -6,7 +6,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from tensorflow.python import debug as tf_debug
 
 c = 0.05
-n_points = 101
+# 10-cent increments
+n_points = 128
 
 print("UNFINISHED")
 
@@ -21,25 +22,39 @@ config.gpu_options.allow_growth = True
 sess = tf.Session(config=config)
 
 dimensions = 2
-log_pitches = tf.get_variable("log_pitches", [n_points**dimensions, dimensions], dtype=tf.float64)
+batch_size = 2048
+log_pitches = tf.get_variable("log_pitches", [batch_size, dimensions], dtype=tf.float64)
+vectors = vector_space_graph(5, 4, bounds=(0.0, 1.0), name="vectors")
+
 init_op = tf.global_variables_initializer()
-
-vectors = vector_space_graph(5, 4, name="vectors")
-z_op = calc_func_graph(log_pitches, vectors, c=c)
-
 sess.run(init_op)
 
 xs = np.linspace(0.0, 1.0, n_points)
 ys = np.linspace(0.0, 1.0, n_points)
 xv, yv = np.meshgrid(xs, ys, sparse=False)
+zv = np.array([])
+
+# Creates a vector of pairs of shape [n_points**dimensions, dimensions]
 starting_coordinates = np.array([xv, yv]).reshape(dimensions, n_points**dimensions).T
+starting_dataset = tf.data.Dataset.from_tensor_slices({
+    "coords": tf.constant(starting_coordinates)
+})
+starting_iterator = starting_dataset.batch(batch_size).make_one_shot_iterator()
+next_element = starting_iterator.get_next()
 
-zv = np.empty((0, starting_coordinates.shape[1]))
+while True:
+    try:
+        with tf.control_dependencies([log_pitches.assign(next_element['coords'])]):
+            z_op = calc_func_graph(log_pitches, vectors, c=c)
+        new_points = sess.run(z_op)
+        zv = np.concatenate([zv, new_points])
+    except tf.errors.OutOfRangeError:
+        break
 
-for row in np.split(starting_coordinates, starting_coordinates.shape[0]):
-    sess.run([log_pitches.assign(row)])
-    new_row = sess.run(z_op, options=run_options).reshape(n_points, n_points)
-    zv = np.concatenate((zv, new_row), axis=0)
+# print(zv)
+zv = np.expand_dims(zv, 0).reshape([n_points, n_points])
+# print(zv.shape)
+# print(zv)
 
 fig = plt.figure()
 ax = Axes3D(fig)
