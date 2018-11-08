@@ -9,8 +9,6 @@ c = 0.05
 # 10-cent increments
 n_points = 128
 
-print("UNFINISHED")
-
 # with n_points = 101, parallel
 # TotalSeconds      : 4.5721547
 
@@ -22,7 +20,7 @@ config.gpu_options.allow_growth = True
 sess = tf.Session(config=config)
 
 dimensions = 2
-batch_size = 2048
+batch_size = 1024
 log_pitches = tf.get_variable("log_pitches", [batch_size, dimensions], dtype=tf.float64)
 vectors = vector_space_graph(5, 4, bounds=(0.0, 1.0), name="vectors")
 
