@@ -82,6 +82,8 @@ def calc_func_graph(log_pitches, vectors, c=0.1):
     vectors: arlike (not tf)
     c: coefficient to control the width of the bell curve
     """
+    n_pitches = log_pitches.shape[1]
+    num = tf.fill([1], tf.to_double(n_pitches) ** 2.0)
     pitch_distances = vector_pitch_distances(vectors)
     pitch_distances = tf.expand_dims(pitch_distances, -1)
     bases = get_bases(log_pitches.shape[-1] + 1)
@@ -92,10 +94,13 @@ def calc_func_graph(log_pitches, vectors, c=0.1):
     combos = tf.tensordot(tiled_ones, combinatorial_log_pitches, 1)
     diffs = tf.abs(tf.add(tf.expand_dims(pitch_distances, 1), combos))
     scales = tf.exp(-1.0 * (diffs**2 / (2.0 * c**2)))
-    harmonicities = tf.abs(harmonicity_graph(vectors.shape[-1], vectors))
-    harmonicities = tf.expand_dims(harmonicities, -1)
-    reduced_max = tf.reduce_max(tf.expand_dims(harmonicities, 1) * scales, 0)
-    return tf.reduce_mean(reduced_max, -1)
+    harmonicities = harmonicity_graph(vectors.shape[-1], vectors)
+    harmonicities = tf.expand_dims(tf.expand_dims(harmonicities, -1), 1)
+    harmonicities = harmonicities * scales
+    harmonicities = tf.abs(tf.reciprocal(harmonicities))
+    harmonicities = tf.reduce_min(harmonicities, axis=0)
+    harmonicities = tf.reduce_sum(harmonicities, axis=-1)
+    return num / harmonicities
 
 def cost_func(log_pitches, vectors, c=0.1, name=None):
     return tf.subtract(tf.constant(1.0, dtype=tf.float64), calc_func_graph(log_pitches, vectors, c), name=name)
