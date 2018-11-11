@@ -43,7 +43,7 @@ next_element = starting_iterator.get_next()
 while True:
     try:
         with tf.control_dependencies([log_pitches.assign(next_element['coords'])]):
-            z_op = calc_func_graph(log_pitches, vectors, c=c)
+            z_op = calc_func_graph(log_pitches, vectors, c=c, bounds=tf.constant([[0.0, 0.5], [0.5, 1.0]], dtype=tf.float64))
         new_points = sess.run(z_op)
         zv = np.concatenate([zv, new_points])
     except tf.errors.OutOfRangeError:

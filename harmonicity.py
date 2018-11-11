@@ -76,7 +76,7 @@ def vector_pitch_distances(vectors):
     float_ratio = tf.reduce_prod(tf.pow(tf.constant(prime_slice, dtype=tf.float64), vectors), axis=1)
     return tf.log(float_ratio) / tf.log(tf.constant([2.0], dtype=tf.float64))
 
-def calc_func_graph(log_pitches, vectors, c=0.1):
+def calc_func_graph(log_pitches, vectors, c=0.1, bounds=None):
     """
     log_pitches: tf.Variable that is the input coordinates
     vectors: arlike (not tf)
@@ -94,6 +94,17 @@ def calc_func_graph(log_pitches, vectors, c=0.1):
     combos = tf.tensordot(tiled_ones, combinatorial_log_pitches, 1)
     diffs = tf.abs(tf.add(tf.expand_dims(pitch_distances, 1), combos))
     scales = tf.exp(-1.0 * (diffs**2 / (2.0 * c**2)))
+    
+    # TODO: if out of bounds, set the scale to 0.0
+    if bounds is not None:
+        if bounds.shape[0] != n_pitches:
+            raise tf.errors.InvalidArgumentError(None, None, "bounds outer shape must == the number of log_pitches")
+        is_out_of_bounds = tf.logical_or(tf.greater_equal(pitch_distances, bounds[0][1]), tf.less_equal(pitch_distances, bounds[0][0]))
+        is_out_of_bounds = tf.tile(is_out_of_bounds, [1,  3])
+        is_relevant = tf.equal(tf.abs(bases[0]), 1.0)[None, :]
+        is_both = tf.tile(tf.logical_and(is_out_of_bounds, is_relevant)[:, None, :], [1, 1024, 1])
+        scales = tf.where(is_both, x=tf.zeros_like(scales), y=scales)
+    
     harmonicities = harmonicity_graph(vectors.shape[-1], vectors)
     harmonicities = tf.expand_dims(tf.expand_dims(harmonicities, -1), 1)
     harmonicities = harmonicities * scales
