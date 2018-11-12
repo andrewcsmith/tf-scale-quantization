@@ -99,15 +99,21 @@ def calc_func_graph(log_pitches, vectors, c=0.1, bounds=None):
     if bounds is not None:
         if bounds.shape[0] != n_pitches:
             raise tf.errors.InvalidArgumentError(None, None, "bounds outer shape must == the number of log_pitches")
-        is_out_of_bounds = tf.logical_or(tf.greater_equal(pitch_distances, bounds[0][1]), tf.less_equal(pitch_distances, bounds[0][0]))
-        is_out_of_bounds = tf.tile(is_out_of_bounds, [1,  3])
-        is_relevant = tf.equal(tf.abs(bases[0]), 1.0)[None, :]
-        is_both = tf.tile(tf.logical_and(is_out_of_bounds, is_relevant)[:, None, :], [1, 1024, 1])
+        # [?, n_dimensions]
+        is_out_of_bounds = tf.logical_or(pitch_distances < bounds[:, 0], pitch_distances > bounds[:, 1])
+        is_out_of_bounds = tf.tile(is_out_of_bounds[:, :, None], [1, 1, bases.shape[-1]])
+        # print(is_out_of_bounds.shape) # => [n_poles, n_dimensions, n_combinations]
+        is_relevant = tf.equal(tf.abs(bases), 1.0)[None, :, :]
+        # [n_poles, n_dimensions, bases.shape[-1]]
+        is_both = tf.logical_and(is_out_of_bounds, is_relevant)
+        is_both = tf.reduce_any(is_both, axis=1)
+        # print(is_both.shape) # => (n_poles, n_combinations)
+        is_both = tf.tile(is_both[:, None, :], [1, 1024, 1])
+        # print(scales.shape) # => (n_poles, batch_size, n_combinations)
         scales = tf.where(is_both, x=tf.zeros_like(scales), y=scales)
     
     harmonicities = harmonicity_graph(vectors.shape[-1], vectors)
-    harmonicities = tf.expand_dims(tf.expand_dims(harmonicities, -1), 1)
-    harmonicities = harmonicities * scales
+    harmonicities = harmonicities[:, None, None] * scales
     harmonicities = tf.abs(tf.reciprocal(harmonicities))
     harmonicities = tf.reduce_min(harmonicities, axis=0)
     harmonicities = tf.reduce_sum(harmonicities, axis=-1)
