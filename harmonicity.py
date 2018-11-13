@@ -83,46 +83,45 @@ def calc_func_graph(log_pitches, vectors, c=0.1, bounds=None):
     c: coefficient to control the width of the bell curve
     """
     n_pitches = log_pitches.shape[1]
-    num = tf.fill([1], tf.to_double(n_pitches) ** 2.0)
     pitch_distances = vector_pitch_distances(vectors)
     pitch_distances = tf.expand_dims(pitch_distances, -1)
     bases = get_bases(log_pitches.shape[-1] + 1)
     combinatorial_log_pitches = tf.abs(tf.tensordot(log_pitches, bases, 1))
-    combinatorial_log_pitches = tf.expand_dims(combinatorial_log_pitches, 0)
     tiled_ones = tf.ones_like(pitch_distances) * -1.0
-    # reduce memory usage. vectors and therefore pitch_distances is 9^5 large.
-    combos = tf.tensordot(tiled_ones, combinatorial_log_pitches, 1)
+    combos = tf.tensordot(tiled_ones, combinatorial_log_pitches[None, :, :], 1)
     diffs = tf.abs(tf.add(tf.expand_dims(pitch_distances, 1), combos))
     scales = tf.exp(-1.0 * (diffs**2 / (2.0 * c**2)))
-    
     harmonicities = harmonicity_graph(vectors.shape[-1], vectors)
     harmonicities = harmonicities[:, None, None] * scales
+    
+    if bounds is not None:
+        if bounds.shape[0] != n_pitches:
+            raise tf.errors.InvalidArgumentError(None, None, "bounds outer shape must == the number of log_pitches")
+        pitch_diffs = tf.abs(pitch_distances)
+        is_out_of_bounds = tf.logical_or(pitch_diffs < bounds[:, 0], pitch_diffs > bounds[:, 1])
+        is_out_of_bounds = tf.tile(is_out_of_bounds[:, :, None], [1, 1, bases.shape[-1]])
+        bases_mask = tf.equal(tf.abs(bases), 1.0)
+        mask_me_again = tf.logical_not(tf.equal(tf.reduce_sum(bases, axis=0), 0.0))
+        bases_mask = tf.logical_and(bases_mask, mask_me_again)
+        is_relevant = tf.tile(bases_mask[None, :, :], [tf.shape(is_out_of_bounds)[0], 1, 1])
+        is_both = tf.logical_and(is_out_of_bounds, is_relevant)
+        is_both = tf.reduce_any(is_both, axis=1)
+        is_both = tf.tile(is_both[:, None, :], [1, tf.shape(log_pitches)[0], 1])
+        harmonicities = tf.where(tf.logical_not(is_both), x=harmonicities, y=tf.zeros_like(harmonicities))
+    
     harmonicities = tf.abs(tf.reciprocal(harmonicities))
     harmonicities = tf.reduce_min(harmonicities, axis=0)
     harmonicities = tf.reduce_sum(harmonicities, axis=-1)
     harmonicities = tf.to_double(bases.shape[-1]) * tf.reciprocal(harmonicities)
-    
-    # TODO: if out of bounds, set the scale to 0.0
-    if bounds is not None:
-        if bounds.shape[0] != n_pitches:
-            raise tf.errors.InvalidArgumentError(None, None, "bounds outer shape must == the number of log_pitches")
-        is_out_of_bounds = tf.logical_or(log_pitches < bounds[:, 0], log_pitches > bounds[:, 1])
-        is_out_of_bounds = tf.reduce_any(is_out_of_bounds, axis=-1)
-        harmonicities = tf.where(is_out_of_bounds, x=tf.zeros_like(harmonicities), y=harmonicities)
 
-    harmonicities = harmonicity_graph(vectors.shape[-1], vectors)
-    harmonicities = harmonicities[:, None, None] * scales
-    harmonicities = tf.abs(tf.reciprocal(harmonicities))
-    harmonicities = tf.reduce_min(harmonicities, axis=0)
-    harmonicities = tf.reduce_sum(harmonicities, axis=-1)
-    return num / harmonicities
+    return harmonicities
 
 def cost_func(log_pitches, vectors, c=0.1, name=None):
     return tf.subtract(tf.constant(1.0, dtype=tf.float64), calc_func_graph(log_pitches, vectors, c), name=name)
 
 def vector_space_graph(n_primes, n_degrees, bounds=None, name=None):
     vectors = permutations(tf.range(-n_degrees, n_degrees+1, dtype=tf.float64), times=n_primes, name=name)
-    if bounds:
+    if bounds is not None:
         pitch_distances = vector_pitch_distances(vectors)
         out_of_bounds_mask = tf.logical_and(tf.less_equal(pitch_distances, bounds[1]), tf.greater_equal(pitch_distances, bounds[0]))
         pitch_distances = tf.boolean_mask(pitch_distances, out_of_bounds_mask)
