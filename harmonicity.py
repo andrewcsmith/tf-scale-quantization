@@ -95,23 +95,21 @@ def calc_func_graph(log_pitches, vectors, c=0.1, bounds=None):
     diffs = tf.abs(tf.add(tf.expand_dims(pitch_distances, 1), combos))
     scales = tf.exp(-1.0 * (diffs**2 / (2.0 * c**2)))
     
+    harmonicities = harmonicity_graph(vectors.shape[-1], vectors)
+    harmonicities = harmonicities[:, None, None] * scales
+    harmonicities = tf.abs(tf.reciprocal(harmonicities))
+    harmonicities = tf.reduce_min(harmonicities, axis=0)
+    harmonicities = tf.reduce_sum(harmonicities, axis=-1)
+    harmonicities = tf.to_double(bases.shape[-1]) * tf.reciprocal(harmonicities)
+    
     # TODO: if out of bounds, set the scale to 0.0
     if bounds is not None:
         if bounds.shape[0] != n_pitches:
             raise tf.errors.InvalidArgumentError(None, None, "bounds outer shape must == the number of log_pitches")
-        # [?, n_dimensions]
-        is_out_of_bounds = tf.logical_or(pitch_distances < bounds[:, 0], pitch_distances > bounds[:, 1])
-        is_out_of_bounds = tf.tile(is_out_of_bounds[:, :, None], [1, 1, bases.shape[-1]])
-        # print(is_out_of_bounds.shape) # => [n_poles, n_dimensions, n_combinations]
-        is_relevant = tf.equal(tf.abs(bases), 1.0)[None, :, :]
-        # [n_poles, n_dimensions, bases.shape[-1]]
-        is_both = tf.logical_and(is_out_of_bounds, is_relevant)
-        is_both = tf.reduce_any(is_both, axis=1)
-        # print(is_both.shape) # => (n_poles, n_combinations)
-        is_both = tf.tile(is_both[:, None, :], [1, 1024, 1])
-        # print(scales.shape) # => (n_poles, batch_size, n_combinations)
-        scales = tf.where(is_both, x=tf.zeros_like(scales), y=scales)
-    
+        is_out_of_bounds = tf.logical_or(log_pitches < bounds[:, 0], log_pitches > bounds[:, 1])
+        is_out_of_bounds = tf.reduce_any(is_out_of_bounds, axis=-1)
+        harmonicities = tf.where(is_out_of_bounds, x=tf.zeros_like(harmonicities), y=harmonicities)
+
     harmonicities = harmonicity_graph(vectors.shape[-1], vectors)
     harmonicities = harmonicities[:, None, None] * scales
     harmonicities = tf.abs(tf.reciprocal(harmonicities))
