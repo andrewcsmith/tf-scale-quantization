@@ -20,9 +20,9 @@ config.gpu_options.allow_growth = True
 sess = tf.Session(config=config)
 
 dimensions = 2
-batch_size = 1024
+batch_size = 2048
 log_pitches = tf.get_variable("log_pitches", [batch_size, dimensions], dtype=tf.float64)
-vectors = vector_space_graph(5, 4, bounds=(0.0, 1.0), name="vectors")
+vectors = vector_space_graph(5, 4, bounds=(-2.0, 2.0), name="vectors")
 
 init_op = tf.global_variables_initializer()
 sess.run(init_op)
@@ -43,7 +43,8 @@ next_element = starting_iterator.get_next()
 while True:
     try:
         with tf.control_dependencies([log_pitches.assign(next_element['coords'])]):
-            z_op = calc_func_graph(log_pitches, vectors, c=c, bounds=tf.constant([[0.0, 0.5], [0.5, 1.0]], dtype=tf.float64))
+            z_op = calc_func_graph(log_pitches, vectors, c=c, bounds=tf.constant([[0.2, 0.6], [0.2, 0.8]], dtype=tf.float64))
+            # z_op = calc_func_graph(log_pitches, vectors, c=c)
         new_points = sess.run(z_op)
         zv = np.concatenate([zv, new_points])
     except tf.errors.OutOfRangeError:
