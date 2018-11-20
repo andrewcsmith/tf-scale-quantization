@@ -6,12 +6,12 @@ from mpl_toolkits.mplot3d import Axes3D
 from tensorflow.python import debug as tf_debug
 import time
 
-c = 0.06
+c = 0.02
 # 10-cent increments
 n_points = 8
-LEARNING_RATE = 1.0e-3
-CONVERGENCE_THRESHOLD = 2.0 ** -64
-MAX_ITERS = 1000000
+LEARNING_RATE = 1.0e-4
+CONVERGENCE_THRESHOLD = 2.0 ** -32
+MAX_ITERS = 10000
 
 run_options = tf.RunOptions()
 run_options.report_tensor_allocations_upon_oom = True
@@ -20,15 +20,13 @@ config.gpu_options.allow_growth = True
 sess = tf.Session(config=config)
 
 dimensions = 2
-batch_size = 64
 log_pitches = tf.get_variable("log_pitches", [1, dimensions], dtype=tf.float64)
 
 init_op = tf.global_variables_initializer()
 sess.run(init_op)
 
-vectors = vector_space_graph(5, 6, bounds=(-1.0, 2.0), name="vectors")
-
-assign_op = log_pitches.assign([[0.70764, 1.0028]])
+vectors = vector_space_graph(6, 5, bounds=(0.0, 1.0), name="vectors")
+assign_op = log_pitches.assign([[0.6, 0.4]])
 
 opt = tf.train.GradientDescentOptimizer(learning_rate=LEARNING_RATE)
 loss = cost_func(log_pitches, vectors, c=c, name="loss")

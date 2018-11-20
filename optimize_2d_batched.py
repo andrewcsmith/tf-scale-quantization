@@ -8,10 +8,14 @@ import time
 
 c = 0.04
 # 10-cent increments
-n_points = 16
+n_points = 128
 LEARNING_RATE = 1.0e-3
 CONVERGENCE_THRESHOLD = 2.0 ** -32
 MAX_ITERS = 1000000
+
+# Benchmark: 
+# Converged at iteration:  652
+# time: 5.501294700000001
 
 run_options = tf.RunOptions()
 run_options.report_tensor_allocations_upon_oom = True
@@ -20,13 +24,13 @@ config.gpu_options.allow_growth = True
 sess = tf.Session(config=config)
 
 dimensions = 2
-batch_size = 8
+batch_size = 128
 log_pitches = tf.get_variable("log_pitches", [batch_size, dimensions], dtype=tf.float64)
 
 init_op = tf.global_variables_initializer()
 sess.run(init_op)
 
-vectors = vector_space_graph(4, 4, bounds=(-1.0, 2.0), name="vectors")
+vectors = vector_space_graph(5, 4, bounds=(0.0, 1.0), name="vectors")
 
 xs = np.linspace(0.00, 1.0, n_points)
 ys = np.linspace(0.00, 1.0, n_points)
