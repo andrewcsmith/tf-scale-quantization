@@ -91,8 +91,11 @@ def calc_func_graph(log_pitches, vectors, c=0.1, bounds=None):
     combos = tf.tensordot(tiled_ones, combinatorial_log_pitches[None, :, :], 1)
     diffs = tf.abs(tf.add(tf.expand_dims(pitch_distances, 1), combos))
     scales = tf.exp(-1.0 * (diffs**2 / (2.0 * c**2)))
-    harmonicities = harmonicity_graph(vectors.shape[-1], vectors)
-    harmonicities = harmonicities[:, None, None] * scales
+
+    prime_slice = PRIME_TRANSFORM[:vectors.shape[-1]]
+    indigestibilities = tf.tensordot(tf.abs(vectors), prime_slice, 1)
+    indigestibilities = tf.where(tf.not_equal(indigestibilities, tf.zeros_like(indigestibilities)), x=indigestibilities, y=tf.ones_like(indigestibilities))
+    indigestibilities = indigestibilities[:, None, None] * tf.reciprocal(scales)
     
     if bounds is not None:
         if bounds.shape[0] != n_pitches:
@@ -107,12 +110,11 @@ def calc_func_graph(log_pitches, vectors, c=0.1, bounds=None):
         is_both = tf.logical_and(is_out_of_bounds, is_relevant)
         is_both = tf.reduce_any(is_both, axis=1)
         is_both = tf.tile(is_both[:, None, :], [1, tf.shape(log_pitches)[0], 1])
-        harmonicities = tf.where(tf.logical_not(is_both), x=harmonicities, y=tf.zeros_like(harmonicities))
+        indigestibilities = tf.where(is_both, x=tf.fill(tf.shape(indigestibilities), tf.to_double(1.0e8)), y=indigestibilities)
     
-    harmonicities = tf.abs(tf.reciprocal(harmonicities))
-    harmonicities = tf.reduce_min(harmonicities, axis=0)
-    harmonicities = tf.reduce_sum(harmonicities, axis=-1)
-    harmonicities = tf.to_double(bases.shape[-1]) * tf.reciprocal(harmonicities)
+    indigestibilities = tf.reduce_min(indigestibilities, axis=0)
+    indigestibilities = tf.reduce_sum(indigestibilities, axis=-1)
+    harmonicities = tf.to_double(bases.shape[-1]) * tf.reciprocal(indigestibilities)
 
     return harmonicities
 
